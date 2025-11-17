@@ -23,4 +23,4 @@ CREATE TABLE user_roles (
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 );
 
--- доделать индексы для быстрого поиска.
+CREATE INDEX idx_users_username ON users(user_name)
