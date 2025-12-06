@@ -4,6 +4,7 @@ package com.example.zhukov.cloudbox.exception;
 import com.example.zhukov.cloudbox.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -30,5 +31,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> Exception(Exception e) {
         log.error(e.getMessage(), e);
         return ResponseEntity.badRequest().body(new ErrorResponse("Неизвестная ошибка"));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentialsException(BadCredentialsException e) {
+        log.error(e.getMessage(), e);
+        return ResponseEntity.status(401).body(new ErrorResponse("Неверное имя пользователя или пароль"));
     }
 }

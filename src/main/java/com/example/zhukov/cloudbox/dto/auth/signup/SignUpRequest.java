@@ -1,4 +1,4 @@
-package com.example.zhukov.cloudbox.dto.auth;
+package com.example.zhukov.cloudbox.dto.auth.signup;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
