@@ -6,6 +6,8 @@ import com.example.zhukov.cloudbox.dto.auth.signup.SignUpRequest;
 import com.example.zhukov.cloudbox.dto.auth.signup.SignUpResponse;
 import com.example.zhukov.cloudbox.security.UserDetailsImpl;
 import com.example.zhukov.cloudbox.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -39,5 +41,12 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(token);
         String username = ((UserDetailsImpl) authentication.getPrincipal()).getUsername();
         return ResponseEntity.ok(new SignInResponse(username));
+    }
+
+    @PostMapping("/sign-out")
+    public ResponseEntity<?> signOut(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {session.invalidate();}
+        return ResponseEntity.noContent().build();
     }
 }
