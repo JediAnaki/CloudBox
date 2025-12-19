@@ -106,4 +106,23 @@ public class FileService {
         }
     }
 
+    public void deleteFile(String username, String path) {
+        var byUsername = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        if (path == null || path.isEmpty()) {
+            throw new RuntimeException("Path is required");
+        }
+        String objectPath = String.format("user-%d-files/%s", byUsername.getId(), path);
+        try {
+            var object = RemoveObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(objectPath)
+                    .build();
+            minioClient.removeObject(object);
+        } catch (Exception e) {
+            throw new RuntimeException("Error deleting file", e);
+        }
+
+    }
+
 }

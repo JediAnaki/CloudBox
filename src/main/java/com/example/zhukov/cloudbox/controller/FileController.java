@@ -48,4 +48,11 @@ public class FileController {
                 .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
                 .body(inputStreamResource);
     }
+
+    @DeleteMapping("/resource")
+    public ResponseEntity<?> deleteFile(@RequestParam String path) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        fileService.deleteFile(authentication.getName(), path);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
 }
