@@ -28,7 +28,7 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("directory")
+    @GetMapping("/directory")
     public ResponseEntity<List<ResourceResponse>> getDirectory(
             @RequestParam(value = "path", required = false) String path) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -54,5 +54,12 @@ public class FileController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         fileService.deleteFile(authentication.getName(), path);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @PostMapping("/directory")
+    public ResponseEntity<ResourceResponse> uploadDirectory(@RequestParam String path) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(fileService.createDirectory(authentication.getName(), path));
     }
 }

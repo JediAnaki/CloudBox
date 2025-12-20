@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,10 +72,13 @@ public class FileService {
                 Item item = itemResult.get();
 
                 String objectName = item.objectName();
+                String type = item.isDir() ? "DIRECTORY" : "FILE";
+                if (type.equals("DIRECTORY")) {
+                    objectName = objectName.substring(0, objectName.length() - 1);
+                }
                 int lastSlashIndex = objectName.lastIndexOf("/");
                 String fileName = objectName.substring(lastSlashIndex + 1);
 
-                String type = item.isDir() ? "DIRECTORY" : "FILE";
                 Long size = item.isDir() ? null : item.size();
 
                 ResourceResponse response = new ResourceResponse(normalizedPath, fileName, size, type);
@@ -123,6 +127,44 @@ public class FileService {
             throw new RuntimeException("Error deleting file", e);
         }
 
+    }
+
+    public ResourceResponse createDirectory(String username, String path) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        int lastSlashIndex = path.lastIndexOf("/");
+        if (path.isEmpty()) {
+            throw new RuntimeException("Path is required");
+        }
+        if (!path.endsWith("/")) {
+            path = path + "/";
+        }
+        String objectPath = String.format("user-%d-files/%s", user.getId(), path);
+        InputStream emptyStream = new ByteArrayInputStream(new byte[0]);
+        try {
+            PutObjectArgs putObjectArgs = PutObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(objectPath)
+                    .stream(emptyStream, 0, PART_SIZE)
+                    .build();
+            minioClient.putObject(putObjectArgs);
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating directory", e);
+        }
+        var pathWithoutSlash = path.substring(0, path.length() - 1);
+        var lastSlash = pathWithoutSlash.lastIndexOf("/");
+
+        String parentPath;
+        String folderName;
+
+        if (lastSlash == -1) {
+            parentPath = "/";
+            folderName = pathWithoutSlash;
+        } else {
+            parentPath = pathWithoutSlash.substring(0, lastSlash + 1);
+            folderName = pathWithoutSlash.substring(lastSlash + 1);
+        }
+        return new ResourceResponse(parentPath, folderName, null, "DIRECTORY");
     }
 
 }
