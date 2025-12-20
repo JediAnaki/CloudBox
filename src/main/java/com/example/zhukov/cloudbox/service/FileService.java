@@ -132,7 +132,6 @@ public class FileService {
     public ResourceResponse createDirectory(String username, String path) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
-        int lastSlashIndex = path.lastIndexOf("/");
         if (path.isEmpty()) {
             throw new RuntimeException("Path is required");
         }
@@ -165,6 +164,57 @@ public class FileService {
             folderName = pathWithoutSlash.substring(lastSlash + 1);
         }
         return new ResourceResponse(parentPath, folderName, null, "DIRECTORY");
+    }
+
+    public ResourceResponse getResourceInfo(String username, String path) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
+        if (path == null || path.isEmpty()) {
+            throw new RuntimeException("Path is required");
+        }
+
+        StatObjectResponse statObjectResponse;
+        try {
+            String objectPath = String.format("user-%d-files/%s", user.getId(), path);
+            StatObjectArgs statObjectArgs = StatObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(objectPath)
+                    .build();
+            statObjectResponse = minioClient.statObject(statObjectArgs);
+        } catch (Exception e) {
+            throw new RuntimeException("Error getting file", e);
+        }
+
+        String type = path.endsWith("/") ? "DIRECTORY" : "FILE";
+
+        String parentPath;
+        String resourceName;
+
+        if (type.equals("DIRECTORY")) {
+            String pathWithoutSlash = path.substring(0, path.length() - 1);
+            int lastSlash = pathWithoutSlash.lastIndexOf("/");
+
+            if (lastSlash == -1) {
+                parentPath = "/";
+                resourceName = pathWithoutSlash;
+            } else {
+                parentPath = pathWithoutSlash.substring(0, lastSlash + 1);
+                resourceName = pathWithoutSlash.substring(lastSlash + 1);
+            }
+        } else {
+            int lastSlash = path.lastIndexOf("/");
+            if (lastSlash == -1) {
+                parentPath = "/";
+                resourceName = path;
+            } else {
+                parentPath = path.substring(0, lastSlash + 1);
+                resourceName = path.substring(lastSlash + 1);
+            }
+        }
+        Long size = type.equals("DIRECTORY") ? null : statObjectResponse.size();
+
+        return new ResourceResponse(parentPath, resourceName, size, type);
     }
 
 }

@@ -62,4 +62,10 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(fileService.createDirectory(authentication.getName(), path));
     }
+
+    @GetMapping("/resource")
+    public ResponseEntity<ResourceResponse> getResource(@RequestParam String path) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return ResponseEntity.ok(fileService.getResourceInfo(authentication.getName(), path));
+    }
 }
