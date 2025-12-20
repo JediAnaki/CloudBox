@@ -217,4 +217,59 @@ public class FileService {
         return new ResourceResponse(parentPath, resourceName, size, type);
     }
 
+    public List<ResourceResponse> searchFile(String username, String query) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
+        List<ResourceResponse> responses = new ArrayList<>();
+
+        if (query == null || query.isEmpty()) {
+            throw new RuntimeException("Query is required");
+        }
+
+        String prefix = String.format("user-%d-files/", user.getId());
+
+        ListObjectsArgs listObjectsArgs = ListObjectsArgs.builder()
+                .bucket(minioConfig.getBucketName())
+                .prefix(prefix)
+                .build();
+
+        try {
+            for (Result<Item> itemResult : minioClient.listObjects(listObjectsArgs)) {
+                Item item = itemResult.get();
+
+                String objectName = item.objectName();
+                String type = item.isDir() ? "DIRECTORY" : "FILE";
+
+                if (type.equals("DIRECTORY")) {
+                    objectName = objectName.substring(0, objectName.length() - 1);
+                }
+
+                int lastSlashIndex = objectName.lastIndexOf("/");
+                String fileName = objectName.substring(lastSlashIndex + 1);
+
+                if (fileName.toLowerCase().contains(query.toLowerCase())) {
+                    String pathWithoutPrefix = objectName.replace(prefix, "");
+
+                    String parentPath;
+                    int lastSlash = pathWithoutPrefix.lastIndexOf("/");
+
+                    if (lastSlash == -1) {
+                        parentPath = "/";
+                    } else {
+                        parentPath = pathWithoutPrefix.substring(0, lastSlash + 1);
+                    }
+                    Long size = type.equals("DIRECTORY") ? null : item.size();
+
+                    ResourceResponse response = new ResourceResponse(parentPath, fileName, size, type);
+                    responses.add(response);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error searching files", e);
+        }
+
+        return responses;
+    }
+
 }

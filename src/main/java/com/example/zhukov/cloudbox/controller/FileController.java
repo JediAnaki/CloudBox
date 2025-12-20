@@ -68,4 +68,10 @@ public class FileController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return ResponseEntity.ok(fileService.getResourceInfo(authentication.getName(), path));
     }
+
+    @GetMapping("/resource/search")
+    public ResponseEntity<List<ResourceResponse>> searchResource(@RequestParam String query) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return ResponseEntity.ok(fileService.searchFile(authentication.getName(), query));
+    }
 }
