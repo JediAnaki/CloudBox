@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "minio")
 public class MinioConfig {
+
     private String endpoint;
     private String accessKey;
     private String secretKey;
@@ -17,6 +18,12 @@ public class MinioConfig {
 
     @Bean
     public MinioClient minioClient() {
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new IllegalStateException(
+                    "MinIO endpoint is not configured (minio.endpoint)"
+            );
+        }
+
         return MinioClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
