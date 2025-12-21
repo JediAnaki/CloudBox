@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .securityContext(securityContext -> securityContext.requireExplicitSave(false))
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers("/api/auth/sign-up", "/api/auth/sign-in").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
