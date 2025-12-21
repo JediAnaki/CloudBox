@@ -12,7 +12,6 @@ public class SignUpRequest {
     @Size(min = 3, max = 20, message = "Имя пользователя должно содержать от 6 до 20 символов")
     private String username;
 
-    @NotBlank
     @Email(message = "Неправильный формат почты")
     private String email;
 
