@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   postgres:
     image: postgres:15
@@ -11,13 +12,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cloudbox-network
     restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: redis_7
     ports:
       - "6379:6379"
+    networks:
+      - cloudbox-network
     restart: unless-stopped
+
   minio:
     image: quay.io/minio/minio:latest
     container_name: minio_storage
@@ -30,8 +37,51 @@ services:
     command: server --console-address ":9001" /data
     volumes:
       - data-minio:/data
+    networks:
+      - cloudbox-network
     restart: always
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cloudbox_backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cloudbox
+      SPRING_DATASOURCE_USERNAME: daniil
+      SPRING_DATASOURCE_PASSWORD: 2307
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+    networks:
+      - cloudbox-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../cloud-storage-frontend
+      dockerfile: Dockerfile
+    container_name: cloudbox_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - cloudbox-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   data-minio:
+
+networks:
+  cloudbox-network:
+    driver: bridge
