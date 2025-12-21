@@ -272,4 +272,36 @@ public class FileService {
         return responses;
     }
 
+    public ResourceResponse moveResource(String username, String from, String to) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
+        if (from == null || to == null) {
+            throw new RuntimeException("From or To is required");
+        }
+        String fromPath = String.format("user-%d-files/%s", user.getId(), from);
+        String toPath = String.format("user-%d-files/%s", user.getId(), to);
+        try {
+            CopySource copySource = CopySource.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(fromPath)
+                    .build();
+            CopyObjectArgs copyObjectArgs = CopyObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(toPath)
+                    .source(copySource)
+                    .build();
+            minioClient.copyObject(copyObjectArgs);
+            RemoveObjectArgs removeObjectArgs = RemoveObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(fromPath)
+                    .build();
+            minioClient.removeObject(removeObjectArgs);
+        } catch (Exception e) {
+            throw new RuntimeException("Error copying file", e);
+        }
+        return getResourceInfo(username, to);
+
+    }
+
 }

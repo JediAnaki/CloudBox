@@ -74,4 +74,10 @@ public class FileController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return ResponseEntity.ok(fileService.searchFile(authentication.getName(), query));
     }
+
+    @GetMapping("/resource/move")
+    public ResponseEntity<ResourceResponse> moveFile(@RequestParam String from, @RequestParam String to) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return ResponseEntity.ok(fileService.moveResource(authentication.getName(), from, to));
+    }
 }
