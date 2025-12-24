@@ -10,7 +10,7 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@EqualsAndHashCode(exclude = "users")  // ← исключить users!
+@EqualsAndHashCode(exclude = "users")
 @Table(name = "roles")
 public class Role {
 
