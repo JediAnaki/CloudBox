@@ -9,7 +9,6 @@ import io.minio.StatObjectResponse;
 import io.minio.errors.ErrorResponseException;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
@@ -32,7 +31,6 @@ public class FileServiceIT extends AbstractIT {
     private UserService userService;
 
     @Test
-    @DisplayName("Загрузка файла в MinIO")
     void shouldUploadFile_whenValidRequest() {
         var user = userService.registerUser("zhukov", "zhukov@gmail.com", "123456");
 
@@ -127,11 +125,42 @@ public class FileServiceIT extends AbstractIT {
 
     @Test
     void shouldNotAccessOtherUserFiles_whenValidRequest() {
+        var user1 = userService.registerUser("zhukov1", "zhukov1@gmail.com", "123456");
+        var user2 = userService.registerUser("zhukov2", "zhukov2@gmail.com", "123456");
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "secret.txt",
+                "text/plain",
+                "Hello World".getBytes()
+        );
+
+        fileService.upload(user1.getUsername(), "/", file);
+
+        assertThrows(RuntimeException.class,
+                () -> fileService.getResourceInfo(user2.getUsername(), "secret.txt")
+        );
 
     }
 
     @Test
-    void searchFile() {
+    void shouldSearchOnlyOwnFiles_whenValidRequest() {
+        var user1 = userService.registerUser("zhukov1", "zhukov1@gmail.com", "123456");
+        var user2 = userService.registerUser("zhukov2", "zhukov2@gmail.com", "123456");
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "report.txt",
+                "text/plain",
+                "Hello World".getBytes()
+        );
+
+        fileService.upload(user1.getUsername(), "/", file);
+        fileService.upload(user2.getUsername(), "/", file);
+
+        var responses = fileService.searchFile(user1.getUsername(), "report.txt");
+
+        Assertions.assertEquals(1, responses.size());
     }
 
 
