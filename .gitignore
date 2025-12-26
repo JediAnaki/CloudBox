@@ -32,6 +32,8 @@ out/
 /dist/
 /nbdist/
 /.nb-gradle/
+k8s/secrets/
 
 ### VS Code ###
 .vscode/
+.env
