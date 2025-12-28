@@ -8,7 +8,8 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    - host: cloudbox-example.ru
+      http:
         paths:
           - path: /swagger-ui
             pathType: Prefix

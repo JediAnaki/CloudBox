@@ -11,9 +11,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 @RequiredArgsConstructor
@@ -129,7 +132,6 @@ public class FileService {
             }
         } catch (Exception e) {
             System.err.println("ERROR in listDirectory: " + e.getMessage());
-            e.printStackTrace();
             throw new RuntimeException("Error listing directory", e);
         }
 
@@ -144,15 +146,68 @@ public class FileService {
         if (path == null || path.isEmpty()) {
             throw new RuntimeException("Path is required");
         }
-        String objectPath = String.format("user-%d-files/%s", user.getId(), path);
-        GetObjectArgs args = GetObjectArgs.builder()
+
+        if (path.endsWith("/")) {
+            return downloadFolder(user, path);
+        } else {
+            String objectPath = String.format("user-%d-files/%s", user.getId(), path);
+            GetObjectArgs args = GetObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(objectPath)
+                    .build();
+            try {
+                return minioClient.getObject(args);
+            } catch (Exception e) {
+                throw new RuntimeException("Error downloading file", e);
+            }
+        }
+
+    }
+
+    private InputStream downloadFolder(User user, String path) {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream);
+
+        String prefix = String.format("user-%d-files/%s", user.getId(), path);
+
+        ListObjectsArgs listObjectsArgs = ListObjectsArgs.builder()
                 .bucket(minioConfig.getBucketName())
-                .object(objectPath)
+                .prefix(prefix)
+                .recursive(true)
                 .build();
+
         try {
-            return minioClient.getObject(args);
+            for (var itemResult : minioClient.listObjects(listObjectsArgs)) {
+                var item = itemResult.get();
+                String objectName = item.objectName();
+                if (item.isDir()) {
+                    continue;
+                }
+                GetObjectArgs getObjectArgs = GetObjectArgs.builder()
+                        .bucket(minioConfig.getBucketName())
+                        .object(objectName)
+                        .build();
+
+                InputStream fileStream = minioClient.getObject(getObjectArgs);
+
+                byte[] fileBytes = fileStream.readAllBytes();
+
+                String zipEntryName = objectName.substring(prefix.length());
+                ZipEntry zipEntry = new ZipEntry(zipEntryName);
+                zipOutputStream.putNextEntry(zipEntry);
+
+                zipOutputStream.write(fileBytes);
+
+                zipOutputStream.closeEntry();
+
+                fileStream.close();
+
+            }
+            zipOutputStream.close();
+            return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
         } catch (Exception e) {
-            throw new RuntimeException("Error downloading file", e);
+            System.err.println("ERROR creating ZIP: " + e.getMessage());
+            throw new RuntimeException("Error downloading folder", e);
         }
     }
 
