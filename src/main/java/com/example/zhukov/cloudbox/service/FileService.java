@@ -56,38 +56,84 @@ public class FileService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
-        String normalizedPath = (path == null || path.isEmpty() || path.equals("/")) ? "/" : path;
+        String normalizedPath = (path == null || path.isEmpty() || path.equals("/")) ? "" : path;
 
-        String prefix = (normalizedPath.equals("/"))
+        if (normalizedPath.startsWith("/")) {
+            normalizedPath = normalizedPath.substring(1);
+        }
+
+        if (!normalizedPath.isEmpty() && !normalizedPath.endsWith("/")) {
+            normalizedPath = normalizedPath + "/";
+        }
+
+        String prefix = normalizedPath.isEmpty()
                 ? String.format("user-%d-files/", user.getId())
                 : String.format("user-%d-files/%s", user.getId(), normalizedPath);
+
+        System.out.println("DEBUG listDirectory: prefix=" + prefix);
 
         ListObjectsArgs listObjectsArgs = ListObjectsArgs.builder()
                 .bucket(minioConfig.getBucketName())
                 .prefix(prefix)
+                .recursive(false)
                 .build();
 
         try {
             for (Result<Item> itemResult : minioClient.listObjects(listObjectsArgs)) {
                 Item item = itemResult.get();
-
                 String objectName = item.objectName();
-                String type = item.isDir() ? "DIRECTORY" : "FILE";
-                if (type.equals("DIRECTORY")) {
-                    objectName = objectName.substring(0, objectName.length() - 1);
+
+                System.out.println("DEBUG found object: " + objectName);
+
+                if (objectName.endsWith(".emptyFolderPlaceholder")) {
+                    String folderPath = objectName.replace(".emptyFolderPlaceholder", "");
+                    String relativePath = folderPath.substring(prefix.length());
+
+                    if (relativePath.endsWith("/")) {
+                        relativePath = relativePath.substring(0, relativePath.length() - 1);
+                    }
+
+                    System.out.println("DEBUG folder from placeholder: '" + relativePath + "'");
+
+                    if (relativePath.isEmpty()) {
+                        System.out.println("DEBUG skipping - we are inside this folder");
+                        continue;
+                    }
+
+                    System.out.println("DEBUG skipping placeholder - folder exists as MinIO dir");
+                    continue;
                 }
-                int lastSlashIndex = objectName.lastIndexOf("/");
-                String fileName = objectName.substring(lastSlashIndex + 1);
+
+                String type = item.isDir() ? "DIRECTORY" : "FILE";
+                String relativePath = objectName.substring(prefix.length());
+
+                if (type.equals("DIRECTORY") && relativePath.endsWith("/")) {
+                    relativePath = relativePath.substring(0, relativePath.length() - 1);
+                }
 
                 Long size = item.isDir() ? null : item.size();
 
-                ResourceResponse response = new ResourceResponse(normalizedPath, fileName, size, type);
-                responses.add(response);
+                if (!relativePath.isEmpty() && !relativePath.contains("/")) {
+                    String displayName = type.equals("DIRECTORY") ? relativePath + "/" : relativePath;
+
+                    System.out.println("DEBUG added file/dir: '" + displayName + "' type=" + type);
+
+                    ResourceResponse response = new ResourceResponse(
+                            normalizedPath,
+                            displayName,
+                            size,
+                            type
+                    );
+                    responses.add(response);
+                }
             }
         } catch (Exception e) {
+            System.err.println("ERROR in listDirectory: " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("Error listing directory", e);
         }
 
+        System.out.println("DEBUG total responses: " + responses.size());
         return responses;
     }
 
@@ -111,45 +157,82 @@ public class FileService {
     }
 
     public void deleteFile(String username, String path) {
-        var byUsername = userRepository.findByUsername(username)
+        var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
         if (path == null || path.isEmpty()) {
             throw new RuntimeException("Path is required");
         }
-        String objectPath = String.format("user-%d-files/%s", byUsername.getId(), path);
-        try {
-            var object = RemoveObjectArgs.builder()
-                    .bucket(minioConfig.getBucketName())
-                    .object(objectPath)
-                    .build();
-            minioClient.removeObject(object);
-        } catch (Exception e) {
-            throw new RuntimeException("Error deleting file", e);
-        }
 
+        boolean isDirectory = path.endsWith("/");
+
+        String objectPath = String.format("user-%d-files/%s", user.getId(), path);
+
+        try {
+            if (isDirectory) {
+                System.out.println("DEBUG deleting directory: " + objectPath);
+
+                ListObjectsArgs listArgs = ListObjectsArgs.builder()
+                        .bucket(minioConfig.getBucketName())
+                        .prefix(objectPath)
+                        .recursive(true)
+                        .build();
+
+                for (Result<Item> itemResult : minioClient.listObjects(listArgs)) {
+                    Item item = itemResult.get();
+                    String itemPath = item.objectName();
+
+                    System.out.println("DEBUG deleting: " + itemPath);
+
+                    RemoveObjectArgs removeArgs = RemoveObjectArgs.builder()
+                            .bucket(minioConfig.getBucketName())
+                            .object(itemPath)
+                            .build();
+                    minioClient.removeObject(removeArgs);
+                }
+            } else {
+                System.out.println("DEBUG deleting file: " + objectPath);
+
+                RemoveObjectArgs removeArgs = RemoveObjectArgs.builder()
+                        .bucket(minioConfig.getBucketName())
+                        .object(objectPath)
+                        .build();
+                minioClient.removeObject(removeArgs);
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR deleting: " + e.getMessage());
+            throw new RuntimeException("Error deleting file/directory", e);
+        }
     }
 
     public ResourceResponse createDirectory(String username, String path) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
         if (path.isEmpty()) {
             throw new RuntimeException("Path is required");
         }
+
         if (!path.endsWith("/")) {
             path = path + "/";
         }
-        String objectPath = String.format("user-%d-files/%s", user.getId(), path);
+
+        String objectPath = String.format("user-%d-files/%s.emptyFolderPlaceholder",
+                user.getId(), path);
+
         InputStream emptyStream = new ByteArrayInputStream(new byte[0]);
+
         try {
             PutObjectArgs putObjectArgs = PutObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
                     .object(objectPath)
-                    .stream(emptyStream, 0, PART_SIZE)
+                    .stream(emptyStream, 0, -1)
                     .build();
             minioClient.putObject(putObjectArgs);
         } catch (Exception e) {
             throw new RuntimeException("Error creating directory", e);
         }
+
         var pathWithoutSlash = path.substring(0, path.length() - 1);
         var lastSlash = pathWithoutSlash.lastIndexOf("/");
 
@@ -157,12 +240,13 @@ public class FileService {
         String folderName;
 
         if (lastSlash == -1) {
-            parentPath = "/";
+            parentPath = "";  // ← Изменил "/" на ""
             folderName = pathWithoutSlash;
         } else {
             parentPath = pathWithoutSlash.substring(0, lastSlash + 1);
             folderName = pathWithoutSlash.substring(lastSlash + 1);
         }
+
         return new ResourceResponse(parentPath, folderName, null, "DIRECTORY");
     }
 
