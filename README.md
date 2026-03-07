@@ -10,8 +10,7 @@
 - **Redis**: Управление сессиями
 - **MinIO (S3)**: Хранение файлов (File) и папок (Folder)
 
-## Database Schema
-
+## Database Schema.
 ### PostgreSQL Tables:
 - `users` - Учетные записи пользователей с полями Spring Security
 - `roles` - User roles (ROLE_USER, etc.)
